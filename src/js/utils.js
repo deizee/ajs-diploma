@@ -38,3 +38,23 @@ export function calcHealthLevel(health) {
 
   return 'high';
 }
+
+export function getArrayOfPositions(type, boardSize) {
+  const array = [];
+  if (type === 'user') {
+    for (let i = 0; i < boardSize ** 2; i += 1) {
+      if (i % boardSize === 0 || (i - 1) % boardSize === 0) {
+        array.push(i);
+      }
+    }
+  }
+  if (type === 'computer') {
+    for (let i = 0; i < boardSize ** 2; i += 1) {
+      if ((i + 1) % boardSize === 0 || (i + 2) % boardSize === 0) {
+        array.push(i);
+      }
+    }
+  }
+
+  return array;
+}
