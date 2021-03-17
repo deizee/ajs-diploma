@@ -26,9 +26,11 @@ export default class GameController {
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
     this.allTeamsWithPositions = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    this.state = this.allTeamsWithPositions;
+    this.userTurn = true;
 
     this.gamePlay.drawUi(themes.prairie);
-    this.gamePlay.redrawPositions(this.allTeamsWithPositions);
+    this.gamePlay.redrawPositions(this.state);
 
     this.onCellClickSubscriber();
     this.onCellEnterSubscriber();
@@ -48,22 +50,29 @@ export default class GameController {
 
   onCellClick(index) {
     // TODO: react to click
-    const currentCharacter = this.allTeamsWithPositions.find((el) => el.position === index);
-    if (!currentCharacter) return;
+    const currentCharacter = this.state.find((el) => el.position === index);
 
     if (
-      currentCharacter.character.type === 'bowman' ||
-      currentCharacter.character.type === 'swordsman' ||
-      currentCharacter.character.type === 'magician'
+      currentCharacter &&
+      (currentCharacter.character.type === 'bowman' ||
+        currentCharacter.character.type === 'swordsman' ||
+        currentCharacter.character.type === 'magician')
     ) {
-      this.allTeamsWithPositions.forEach((el) => this.gamePlay.deselectCell(el.position));
+      this.state.forEach((el) => this.gamePlay.deselectCell(el.position));
       this.gamePlay.selectCell(index);
       this.selectChar = currentCharacter;
-    } else {
-      GamePlay.showError('This is not a playable character');
     }
-
-    if (!currentCharacter && this.selectChar) {
+    if (
+      !this.selectChar &&
+      currentCharacter &&
+      (currentCharacter.character.type === 'daemon' ||
+        currentCharacter.character.type === 'undead' ||
+        currentCharacter.character.type === 'vampire')
+    ) {
+      GamePlay.showError('This is not a playable character');
+      return;
+    }
+    if (this.selectChar && !currentCharacter && this.selectChar.position !== index) {
       if (
         isStepPossible(
           this.selectChar.position,
@@ -72,18 +81,33 @@ export default class GameController {
           this.gamePlay.boardSize
         )
       ) {
+        this.state = this.state.filter((el) => el !== this.selectChar);
         this.selectChar.position = index;
-        this.allTeamsWithPositions[
-          this.allTeamsWithPositions.indexOf(this.selectChar)
-        ].position = index;
-        this.gamePlay.redrawPositions(this.allTeamsWithPositions);
+        this.state.push(this.selectChar);
+        this.gamePlay.redrawPositions(this.state);
+        this.gamePlay.cells.forEach((cell) =>
+          this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
+        );
+        this.userTurn = !this.userTurn;
+      }
+    }
+    if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
+      if (
+        isAttackPossible(
+          this.selectChar.position,
+          currentCharacter.position,
+          this.selectChar.character.range,
+          this.gamePlay.boardSize
+        )
+      ) {
+        this.attackTheEnemy(this.selectChar, currentCharacter);
       }
     }
   }
 
   onCellEnter(index) {
     // TODO: react to mouse enter
-    const currentCharacter = this.allTeamsWithPositions.find((el) => el.position === index);
+    const currentCharacter = this.state.find((el) => el.position === index);
 
     if (this.selectChar) {
       this.gamePlay.cells.forEach((cell) => {
@@ -153,5 +177,23 @@ export default class GameController {
 
   onCellLeaveSubscriber() {
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
+  }
+
+  attackTheEnemy(attacker, defender) {
+    const enemy = defender;
+    const damage = Math.max(
+      attacker.character.attack - enemy.character.defence,
+      attacker.character.attack * 0.1
+    );
+    this.state = this.state.filter((el) => el !== enemy);
+    enemy.character.health -= damage;
+    if (enemy.character.health > 0) {
+      this.state.push(enemy);
+    }
+
+    this.gamePlay
+      .showDamage(enemy.position, damage)
+      .then(() => this.gamePlay.redrawPositions(this.state));
+    this.userTurn = !this.userTurn;
   }
 }
