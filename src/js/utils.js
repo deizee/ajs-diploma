@@ -42,14 +42,14 @@ export function calcHealthLevel(health) {
 export function getArrayOfPositions(type, boardSize) {
   const array = [];
   if (type === 'user') {
-    for (let i = 0; i < boardSize ** 2; i += 1) {
+    for (let i = 0; i < boardSize ** 2; i++) {
       if (i % boardSize === 0 || (i - 1) % boardSize === 0) {
         array.push(i);
       }
     }
   }
   if (type === 'computer') {
-    for (let i = 0; i < boardSize ** 2; i += 1) {
+    for (let i = 0; i < boardSize ** 2; i++) {
       if ((i + 1) % boardSize === 0 || (i + 2) % boardSize === 0) {
         array.push(i);
       }
@@ -60,13 +60,10 @@ export function getArrayOfPositions(type, boardSize) {
 }
 
 function genetateCoordinates(boardSize) {
-  const coordinates = [];
-  for (let y = 0; y < boardSize; y += 1) {
-    for (let x = 0; x < boardSize; x += 1) {
-      coordinates.push({ x, y });
-    }
-  }
-  return coordinates;
+  return new Array(64)
+    .fill(0)
+    .map((el, index) => index++)
+    .map((el, i) => ({ x: i % boardSize, y: Math.floor(i / boardSize) }));
 }
 
 /**
@@ -84,7 +81,7 @@ export function isStepPossible(curPosition, nextPosition, step, boardSize) {
   const nextXY = coordinates[nextPosition];
 
   const arrayOfValidCell = [];
-  for (let i = 1; i <= step; i += 1) {
+  for (let i = 1; i <= step; i++) {
     arrayOfValidCell.push(
       [currentXY.x - i, currentXY.y - i],
       [currentXY.x, currentXY.y - i],
@@ -97,9 +94,16 @@ export function isStepPossible(curPosition, nextPosition, step, boardSize) {
     );
   }
 
-  return arrayOfValidCell.some(
-    (coordinate) => coordinate[0] === nextXY.x && coordinate[1] === nextXY.y
-  );
+  const indexsesOfValidCells = arrayOfValidCell
+    .filter((el) => el[0] >= 0 && el[1] >= 0 && el[0] <= 7 && el[1] <= 7)
+    .map((el) => el[0] + el[1] * 8);
+
+  return {
+    success: arrayOfValidCell.some(
+      (coordinate) => coordinate[0] === nextXY.x && coordinate[1] === nextXY.y
+    ),
+    validCells: indexsesOfValidCells,
+  };
 }
 
 /**
@@ -117,9 +121,11 @@ export function isAttackPossible(curPosition, enemyPosition, range, boardSize) {
   const enemyXY = coordinates[enemyPosition];
 
   const arrayOfValidCell = [];
-  for (let y = currentXY.y - range; y <= currentXY.y + range; y += 1) {
-    for (let x = currentXY.x - range; x <= currentXY.x + range; x += 1) {
-      arrayOfValidCell.push({ x, y });
+  for (let y = currentXY.y - range; y <= currentXY.y + range; y++) {
+    for (let x = currentXY.x - range; x <= currentXY.x + range; x++) {
+      if (x >= 0 && x <= 7 && y >= 0 && y <= 7) {
+        arrayOfValidCell.push({ x, y });
+      }
     }
   }
 

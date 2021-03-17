@@ -25,8 +25,7 @@ export default class GameController {
       this.computerTeam,
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
-    this.allTeamsWithPositions = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
-    this.state = this.allTeamsWithPositions;
+    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
     this.userTurn = true;
 
     this.gamePlay.drawUi(themes.prairie);
@@ -79,17 +78,13 @@ export default class GameController {
           index,
           this.selectChar.character.step,
           this.gamePlay.boardSize
-        )
+        ).success
       ) {
         this.state = this.state.filter((el) => el !== this.selectChar);
         this.selectChar.position = index;
         this.state.push(this.selectChar);
         this.gamePlay.redrawPositions(this.state);
-        this.gamePlay.cells.forEach((cell) =>
-          this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
-        );
-        this.selectChar = null;
-        this.userTurn = !this.userTurn;
+        this.endOfTurn();
       }
     }
     if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
@@ -133,7 +128,7 @@ export default class GameController {
           index,
           this.selectChar.character.step,
           this.gamePlay.boardSize
-        )
+        ).success
       ) {
         this.gamePlay.selectCell(index, 'green');
         this.gamePlay.setCursor(cursors.pointer);
@@ -182,18 +177,72 @@ export default class GameController {
 
   attackTheEnemy(attacker, defender) {
     const enemy = defender;
-    const damage = Math.max(
+    const attackPoints = Math.max(
       attacker.character.attack - enemy.character.defence,
       attacker.character.attack * 0.1
     );
     this.state = this.state.filter((el) => el !== enemy);
-    enemy.character.health -= damage;
+    enemy.character.damage(attackPoints);
     if (enemy.character.health > 0) {
       this.state.push(enemy);
     }
     this.gamePlay
-      .showDamage(enemy.position, damage)
-      .then(() => this.gamePlay.redrawPositions(this.state));
+      .showDamage(enemy.position, attackPoints)
+      .then(() => this.gamePlay.redrawPositions(this.state))
+      .then(() => this.endOfTurn());
+  }
+
+  computerTurn() {
+    const arrayOfEnemys = [];
+    const arrayOfUser = [];
+    this.state.forEach((el) => {
+      if (
+        el.character.type === 'daemon' ||
+        el.character.type === 'undead' ||
+        el.character.type === 'vampire'
+      ) {
+        arrayOfEnemys.push(el);
+      } else {
+        arrayOfUser.push(el);
+      }
+    });
+    const currentEnemy = arrayOfEnemys[Math.floor(Math.random() * arrayOfEnemys.length)];
+    for (const userChar of arrayOfUser) {
+      if (
+        isAttackPossible(
+          currentEnemy.position,
+          userChar.position,
+          currentEnemy.character.range,
+          this.gamePlay.boardSize
+        )
+      ) {
+        this.attackTheEnemy(currentEnemy, userChar);
+        break;
+      } else {
+        const { validCells } = isStepPossible(
+          currentEnemy.position,
+          0,
+          currentEnemy.character.step,
+          this.gamePlay.boardSize
+        );
+        const nextCell = validCells[Math.floor(Math.random() * validCells.length)];
+        this.state = this.state.filter((el) => el !== currentEnemy);
+        currentEnemy.position = nextCell;
+        this.state.push(currentEnemy);
+        break;
+      }
+    }
+    this.endOfTurn();
+  }
+
+  endOfTurn() {
+    this.gamePlay.cells.forEach((cell) =>
+      this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
+    );
+    this.selectChar = null;
     this.userTurn = !this.userTurn;
+    if (!this.userTurn) {
+      this.computerTurn();
+    }
   }
 }
