@@ -88,6 +88,7 @@ export default class GameController {
         this.gamePlay.cells.forEach((cell) =>
           this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
         );
+        this.selectChar = null;
         this.userTurn = !this.userTurn;
       }
     }
@@ -190,7 +191,6 @@ export default class GameController {
     if (enemy.character.health > 0) {
       this.state.push(enemy);
     }
-
     this.gamePlay
       .showDamage(enemy.position, damage)
       .then(() => this.gamePlay.redrawPositions(this.state));
