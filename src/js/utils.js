@@ -56,9 +56,7 @@ export function getArrayOfPositions(type, boardSize) {
     }
   }
 
-  // return array;
-  // eslint-disable-next-line no-plusplus
-  return new Array(64).fill(0).map((e, i) => i++);
+  return array;
 }
 
 function genetateCoordinates(boardSize) {
