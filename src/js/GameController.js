@@ -2,36 +2,32 @@ import themes from './themes';
 import Team from './Team';
 import { generateTeam } from './generators';
 import PositionedCharacter from './PositionedCharacter';
-import { getArrayOfPositions } from './utils';
+import { getArrayOfPositions, isStepPossible, isAttackPossible } from './utils';
 import GamePlay from './GamePlay';
+import cursors from './cursors';
 
 export default class GameController {
   constructor(gamePlay, stateService) {
     this.gamePlay = gamePlay;
     this.stateService = stateService;
-    this.userTeam = generateTeam(new Team().userTeam, 1, 2);
-    this.computerTeam = generateTeam(new Team().computerTeam, 1, 2);
-    this.userTeamWithPositions = [];
-    this.computerTeamWithPositions = [];
-    this.allTeamsWithPositions = [];
   }
 
   init() {
     // TODO: add event listeners to gamePlay events
     // TODO: load saved stated from stateService
-    this.gamePlay.drawUi(themes.prairie);
-
-    const userPositions = getArrayOfPositions('user', this.gamePlay.boardSize); // [0, 1, 8, 9, 16, 17, 24, 25, 32, 33, 40, 41, 48, 49, 56, 57];
-    const compPositions = getArrayOfPositions('computer', this.gamePlay.boardSize); // [6, 7, 14, 15, 22, 23, 30, 31, 38, 39, 46, 47, 54, 55, 62, 63];
-
-    this.userTeamWithPositions = this.generateTeamWithPositions(this.userTeam, userPositions);
+    this.userTeam = generateTeam(new Team().userTeam, 1, 2);
+    this.computerTeam = generateTeam(new Team().computerTeam, 1, 2);
+    this.userTeamWithPositions = this.generateTeamWithPositions(
+      this.userTeam,
+      getArrayOfPositions('user', this.gamePlay.boardSize)
+    );
     this.computerTeamWithPositions = this.generateTeamWithPositions(
       this.computerTeam,
-      compPositions
+      getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
-
     this.allTeamsWithPositions = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
 
+    this.gamePlay.drawUi(themes.prairie);
     this.gamePlay.redrawPositions(this.allTeamsWithPositions);
 
     this.onCellClickSubscriber();
@@ -62,18 +58,84 @@ export default class GameController {
     ) {
       this.allTeamsWithPositions.forEach((el) => this.gamePlay.deselectCell(el.position));
       this.gamePlay.selectCell(index);
+      this.selectChar = currentCharacter;
     } else {
       GamePlay.showError('This is not a playable character');
+    }
+
+    if (!currentCharacter && this.selectChar) {
+      if (
+        isStepPossible(
+          this.selectChar.position,
+          index,
+          this.selectChar.character.step,
+          this.gamePlay.boardSize
+        )
+      ) {
+        this.selectChar.position = index;
+        this.allTeamsWithPositions[
+          this.allTeamsWithPositions.indexOf(this.selectChar)
+        ].position = index;
+        this.gamePlay.redrawPositions(this.allTeamsWithPositions);
+      }
     }
   }
 
   onCellEnter(index) {
     // TODO: react to mouse enter
     const currentCharacter = this.allTeamsWithPositions.find((el) => el.position === index);
-    if (!currentCharacter) return;
 
-    const { level, attack, defence, health } = currentCharacter.character;
-    this.gamePlay.showCellTooltip(`🎖${level} ⚔${attack} 🛡${defence} ❤${health}`, index);
+    if (this.selectChar) {
+      this.gamePlay.cells.forEach((cell) => {
+        if (this.gamePlay.cells.indexOf(cell) !== this.selectChar.position) {
+          this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell));
+        }
+      });
+    }
+
+    if (currentCharacter) {
+      const { level, attack, defence, health } = currentCharacter.character;
+      this.gamePlay.showCellTooltip(`🎖${level} ⚔${attack} 🛡${defence} ❤${health}`, index);
+      this.gamePlay.setCursor(cursors.pointer);
+    } else {
+      this.gamePlay.setCursor(cursors.auto);
+    }
+
+    if (!currentCharacter && this.selectChar) {
+      if (
+        isStepPossible(
+          this.selectChar.position,
+          index,
+          this.selectChar.character.step,
+          this.gamePlay.boardSize
+        )
+      ) {
+        this.gamePlay.selectCell(index, 'green');
+        this.gamePlay.setCursor(cursors.pointer);
+      }
+    }
+
+    if (
+      this.selectChar &&
+      currentCharacter &&
+      (currentCharacter.character.type === 'daemon' ||
+        currentCharacter.character.type === 'undead' ||
+        currentCharacter.character.type === 'vampire')
+    ) {
+      if (
+        isAttackPossible(
+          this.selectChar.position,
+          currentCharacter.position,
+          this.selectChar.character.range,
+          this.gamePlay.boardSize
+        )
+      ) {
+        this.gamePlay.selectCell(index, 'red');
+        this.gamePlay.setCursor(cursors.crosshair);
+      } else {
+        this.gamePlay.setCursor(cursors.notallowed);
+      }
+    }
   }
 
   onCellLeave(index) {
