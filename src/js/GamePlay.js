@@ -35,6 +35,19 @@ export default class GamePlay {
         <button data-id="action-save" class="btn">Save Game</button>
         <button data-id="action-load" class="btn">Load Game</button>
       </div>
+      <div>
+        <div class="statistics">
+          <div class="level-container">
+            <p>Level: <span id="level"></span></p>
+          </div>
+          <div class="score-container">
+            <p>Score: <span id="scores"></span></p>
+          </div>
+          <div class="record-container">
+            <p>Record: <span id="record"></span></p>
+          </div>
+        </div>
+      </div>
       <div class="board-container">
         <div data-id="board" class="board"></div>
       </div>
@@ -229,5 +242,11 @@ export default class GamePlay {
     if (this.container === null) {
       throw new Error('GamePlay not bind to DOM');
     }
+  }
+
+  unsubscribe() {
+    this.cellClickListeners = [];
+    this.cellEnterListeners = [];
+    this.cellLeaveListeners = [];
   }
 }

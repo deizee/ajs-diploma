@@ -8,5 +8,6 @@ export default class Magician extends Character {
     this.defence = 40;
     this.step = 1;
     this.range = 4;
+    this.isPlayer = true;
   }
 }

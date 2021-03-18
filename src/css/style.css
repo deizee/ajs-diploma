@@ -240,6 +240,12 @@ body {
   animation: 500ms fade ease-out;
 }
 
+.statistics {
+  color: #fff;
+  font-size: 20px;
+  text-align: center;
+}
+
 @keyframes fade {
   from {
     opacity: 0;

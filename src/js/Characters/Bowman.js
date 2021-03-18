@@ -8,5 +8,6 @@ export default class Bowman extends Character {
     this.defence = 25;
     this.step = 2;
     this.range = 2;
+    this.isPlayer = true;
   }
 }

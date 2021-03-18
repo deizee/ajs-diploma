@@ -15,25 +15,34 @@ export default class GameController {
   init() {
     // TODO: add event listeners to gamePlay events
     // TODO: load saved stated from stateService
-    this.userTeam = generateTeam(new Team().userTeam, 1, 2);
-    this.computerTeam = generateTeam(new Team().computerTeam, 1, 2);
+    this.currentLevel = 1;
+    this.scores = 0;
+    this.record = 0;
+    const userTeam = generateTeam(new Team().userTeam, 1, 2);
+    const computerTeam = generateTeam(new Team().computerTeam, 1, 2);
     this.userTeamWithPositions = this.generateTeamWithPositions(
-      this.userTeam,
+      userTeam,
       getArrayOfPositions('user', this.gamePlay.boardSize)
     );
     this.computerTeamWithPositions = this.generateTeamWithPositions(
-      this.computerTeam,
+      computerTeam,
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
     this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
     this.userTurn = true;
 
-    this.gamePlay.drawUi(themes.prairie);
+    this.gamePlay.drawUi(themes[this.currentLevel - 1]);
     this.gamePlay.redrawPositions(this.state);
+
+    const levelElement = document.getElementById('level');
+    const scoresElement = document.getElementById('scores');
+    levelElement.textContent = this.currentLevel;
+    scoresElement.textContent = this.scores;
 
     this.onCellClickSubscriber();
     this.onCellEnterSubscriber();
     this.onCellLeaveSubscriber();
+    this.onNewGameSubscriber();
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -51,23 +60,12 @@ export default class GameController {
     // TODO: react to click
     const currentCharacter = this.state.find((el) => el.position === index);
 
-    if (
-      currentCharacter &&
-      (currentCharacter.character.type === 'bowman' ||
-        currentCharacter.character.type === 'swordsman' ||
-        currentCharacter.character.type === 'magician')
-    ) {
+    if (currentCharacter && currentCharacter.character.isPlayer) {
       this.state.forEach((el) => this.gamePlay.deselectCell(el.position));
       this.gamePlay.selectCell(index);
       this.selectChar = currentCharacter;
     }
-    if (
-      !this.selectChar &&
-      currentCharacter &&
-      (currentCharacter.character.type === 'daemon' ||
-        currentCharacter.character.type === 'undead' ||
-        currentCharacter.character.type === 'vampire')
-    ) {
+    if (!this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
       GamePlay.showError('This is not a playable character');
       return;
     }
@@ -131,13 +129,7 @@ export default class GameController {
       }
     }
 
-    if (
-      this.selectChar &&
-      currentCharacter &&
-      (currentCharacter.character.type === 'daemon' ||
-        currentCharacter.character.type === 'undead' ||
-        currentCharacter.character.type === 'vampire')
-    ) {
+    if (this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
       if (
         isAttackPossible(
           this.selectChar.position,
@@ -171,6 +163,10 @@ export default class GameController {
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
   }
 
+  onNewGameSubscriber() {
+    this.gamePlay.addNewGameListener(this.onNewGame.bind(this));
+  }
+
   attackTheEnemy(attacker, defender) {
     const enemy = defender;
     const attackPoints = Math.max(
@@ -186,20 +182,19 @@ export default class GameController {
   }
 
   computerTurn() {
-    // debugger;
     const arrayOfEnemies = [];
     const arrayOfUser = [];
     this.state.forEach((el) => {
-      if (
-        el.character.type === 'daemon' ||
-        el.character.type === 'undead' ||
-        el.character.type === 'vampire'
-      ) {
+      if (!el.character.isPlayer) {
         arrayOfEnemies.push(el);
       } else {
         arrayOfUser.push(el);
       }
     });
+
+    if (arrayOfEnemies.length === 0) {
+      return;
+    }
 
     const canAttackEnemies = arrayOfEnemies.reduce((acc, prev) => {
       const arrayOfDefenders = [];
@@ -263,6 +258,12 @@ export default class GameController {
     if (this.selectChar && this.selectChar.character.health <= 0) {
       this.selectChar = null;
     }
+    const arrayOfEnemies = [...this.state].filter((char) => !char.character.isPlayer);
+    if (arrayOfEnemies.length === 0) {
+      this.nextLevel();
+      return;
+    }
+    this.gamePlay.setCursor(cursors.auto);
     this.gamePlay.redrawPositions(this.state);
     if (this.selectChar) {
       this.gamePlay.selectCell(this.selectChar.position);
@@ -273,5 +274,108 @@ export default class GameController {
     } else {
       this.userTurn = true;
     }
+  }
+
+  nextLevel() {
+    console.log('YOU WIN!');
+    this.currentLevel += 1;
+    if (this.currentLevel > 4) {
+      this.endOfGame();
+      return;
+    }
+    this.gamePlay.drawUi(themes[this.currentLevel - 1]);
+    this.scores += this.state.reduce((acc, prev) => acc + prev.character.health, 0);
+    const levelElement = document.getElementById('level');
+    const scoresElement = document.getElementById('scores');
+    const recordElement = document.getElementById('record');
+    levelElement.textContent = this.currentLevel;
+    scoresElement.textContent = this.scores;
+    recordElement.textContent = this.record;
+    // апаем оставшихся персонажей
+    this.state.reduce((acc, prev) => {
+      prev.character.levelUp();
+      acc.push(prev);
+      return acc;
+    }, []);
+    // создаем новых игроков и добавляем их в команду
+    const cuantityOfNewChars = this.currentLevel > 2 ? 2 : 1;
+    const newChars = generateTeam(new Team().userTeam, this.currentLevel - 1, cuantityOfNewChars);
+    // генерируем массивы команд с новыми позициями
+    let newUserTeam = [...this.state].map((char) => char.character);
+    newUserTeam = [...newUserTeam, ...newChars];
+    this.userTeamWithPositions = this.generateTeamWithPositions(
+      newUserTeam,
+      getArrayOfPositions('user', this.gamePlay.boardSize)
+    );
+    const newComputerTeam = generateTeam(
+      new Team().computerTeam,
+      this.currentLevel,
+      newUserTeam.length
+    );
+    this.computerTeamWithPositions = this.generateTeamWithPositions(
+      this.statesUpForCompChars(newComputerTeam),
+      getArrayOfPositions('computer', this.gamePlay.boardSize)
+    );
+    // обновляем state и перерисовываем поле
+    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    this.gamePlay.cells.forEach((cell) =>
+      this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
+    );
+    this.selectChar = null;
+    this.gamePlay.redrawPositions(this.state);
+  }
+
+  statesUpForCompChars(team) {
+    return team.reduce((acc, char) => {
+      for (let i = 1; i < char.level; i++) {
+        char.statesUp();
+      }
+      acc.push(char);
+      return acc;
+    }, []);
+  }
+
+  endOfGame() {
+    this.unsubscriber();
+    alert('YOU WIN THE GAME!');
+    this.record = Math.max(this.record, this.scores);
+    const recordElement = document.getElementById('record');
+    recordElement.textContent = this.record;
+    this.gamePlay.redrawPositions(this.state);
+  }
+
+  onNewGame() {
+    this.currentLevel = 1;
+    this.scores = 0;
+    const userTeam = generateTeam(new Team().userTeam, 1, 2);
+    const computerTeam = generateTeam(new Team().computerTeam, 1, 2);
+    this.userTeamWithPositions = this.generateTeamWithPositions(
+      userTeam,
+      getArrayOfPositions('user', this.gamePlay.boardSize)
+    );
+    this.computerTeamWithPositions = this.generateTeamWithPositions(
+      computerTeam,
+      getArrayOfPositions('computer', this.gamePlay.boardSize)
+    );
+    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    this.userTurn = true;
+
+    this.gamePlay.drawUi(themes[this.currentLevel - 1]);
+    this.gamePlay.redrawPositions(this.state);
+
+    const levelElement = document.getElementById('level');
+    const scoresElement = document.getElementById('scores');
+    const recordElement = document.getElementById('record');
+    levelElement.textContent = this.currentLevel;
+    scoresElement.textContent = this.scores;
+    recordElement.textContent = this.record;
+
+    this.onCellClickSubscriber();
+    this.onCellEnterSubscriber();
+    this.onCellLeaveSubscriber();
+  }
+
+  unsubscriber() {
+    this.gamePlay.unsubscribe();
   }
 }

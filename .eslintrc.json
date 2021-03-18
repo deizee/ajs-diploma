@@ -10,6 +10,7 @@
     "prettier/prettier": ["error"],
     "no-plusplus": "off",
     "no-param-reassign":"off",
+    "class-methods-use-this":"off",
     "no-restricted-syntax": [
       "error",
       "LabeledStatement",
