@@ -5,6 +5,8 @@ import PositionedCharacter from './PositionedCharacter';
 import { getArrayOfPositions, isStepPossible, isAttackPossible } from './utils';
 import GamePlay from './GamePlay';
 import cursors from './cursors';
+import GameState from './GameState';
+import Chatacter from './Character';
 
 export default class GameController {
   constructor(gamePlay, stateService) {
@@ -28,24 +30,27 @@ export default class GameController {
       computerTeam,
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
-    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
-    this.userTurn = true;
+    this.players = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    this.isUserTurn = true;
 
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
-    this.gamePlay.redrawPositions(this.state);
+    this.gamePlay.redrawPositions(this.players);
 
     const levelElement = document.getElementById('level');
     const scoresElement = document.getElementById('scores');
+    const recordElement = document.getElementById('record');
     levelElement.textContent = this.currentLevel;
     scoresElement.textContent = this.scores;
+    recordElement.textContent = this.record;
 
     this.onCellClickSubscriber();
     this.onCellEnterSubscriber();
     this.onCellLeaveSubscriber();
     this.onNewGameSubscriber();
+    this.onSaveGameSubscriber();
+    this.onLoadGameSubscriber();
   }
 
-  // eslint-disable-next-line class-methods-use-this
   generateTeamWithPositions(team, arrayOfPositions) {
     const array = arrayOfPositions;
     return team.reduce((acc, prev) => {
@@ -58,17 +63,19 @@ export default class GameController {
 
   onCellClick(index) {
     // TODO: react to click
-    const currentCharacter = this.state.find((el) => el.position === index);
-
+    const currentCharacter = this.players.find((el) => el.position === index);
+    // если в ячейке есть персонаж и он игрок, то убирай предыдущие выделения, выделяй его и записыыавй его в this.selectChar
     if (currentCharacter && currentCharacter.character.isPlayer) {
-      this.state.forEach((el) => this.gamePlay.deselectCell(el.position));
+      this.players.forEach((el) => this.gamePlay.deselectCell(el.position));
       this.gamePlay.selectCell(index);
       this.selectChar = currentCharacter;
     }
+    // если нет выбранного персонажа и в ячейке есть персонаж и он не игрок, то показывай ошибку, что его выбирать нельзя
     if (!this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
       GamePlay.showError('This is not a playable character');
       return;
     }
+    // если есть выбранный персонаж, и мы кликаем на пустую ячейку, то проверяй, можно ли туда сходить. Если да, то ходи
     if (this.selectChar && !currentCharacter && this.selectChar.position !== index) {
       if (
         isStepPossible(
@@ -81,6 +88,7 @@ export default class GameController {
         this.makeStep(this.selectChar, index);
       }
     }
+    // если есть выбранный персонаж, и мы кликаем на персонаж компьютера, то проверяй, можно ли атаковать. Если да, то атакуй
     if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
       if (
         isAttackPossible(
@@ -97,8 +105,9 @@ export default class GameController {
 
   onCellEnter(index) {
     // TODO: react to mouse enter
-    const currentCharacter = this.state.find((el) => el.position === index);
+    const currentCharacter = this.players.find((el) => el.position === index);
 
+    // если есть выбранный персонаж, то убирай выделения у остальных персонажей
     if (this.selectChar) {
       this.gamePlay.cells.forEach((cell) => {
         if (this.gamePlay.cells.indexOf(cell) !== this.selectChar.position) {
@@ -107,6 +116,7 @@ export default class GameController {
       });
     }
 
+    // если наводим на ячейку, в которой есть персонаж, то показывай его статы
     if (currentCharacter) {
       const { level, attack, defence, health } = currentCharacter.character;
       this.gamePlay.showCellTooltip(`🎖${level} ⚔${attack} 🛡${defence} ❤${health}`, index);
@@ -115,6 +125,7 @@ export default class GameController {
       this.gamePlay.setCursor(cursors.auto);
     }
 
+    // если есть выбранный персонаж, и наводим на пустую ячейку, то подсвечиваем зеленым, если туда можно сходить
     if (!currentCharacter && this.selectChar) {
       if (
         isStepPossible(
@@ -129,6 +140,8 @@ export default class GameController {
       }
     }
 
+    // если есть выбранный, персонаж и наводим на персонаж компьютера, то проверяй, находится ли он в зоне атаки.
+    // Если да, то подсвечивай его красным и меняй курсор на crosshair. Если нет, то меняй курсор на notallowed
     if (this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
       if (
         isAttackPossible(
@@ -167,16 +180,24 @@ export default class GameController {
     this.gamePlay.addNewGameListener(this.onNewGame.bind(this));
   }
 
+  onSaveGameSubscriber() {
+    this.gamePlay.addSaveGameListener(this.onSaveGame.bind(this));
+  }
+
+  onLoadGameSubscriber() {
+    this.gamePlay.addLoadGameListener(this.onLoadGame.bind(this));
+  }
+
   attackTheEnemy(attacker, defender) {
     const enemy = defender;
     const attackPoints = Math.max(
       attacker.character.attack - enemy.character.defence,
       attacker.character.attack * 0.1
     );
-    this.state = [...this.state].filter((el) => el !== enemy);
+    this.players = [...this.players].filter((el) => el !== enemy);
     enemy.character.damage(attackPoints);
     if (enemy.character.health > 0) {
-      this.state.push(enemy);
+      this.players.push(enemy);
     }
     this.gamePlay.showDamage(enemy.position, attackPoints).then(() => this.endOfTurn());
   }
@@ -184,7 +205,7 @@ export default class GameController {
   computerTurn() {
     const arrayOfEnemies = [];
     const arrayOfUser = [];
-    this.state.forEach((el) => {
+    this.players.forEach((el) => {
       if (!el.character.isPlayer) {
         arrayOfEnemies.push(el);
       } else {
@@ -233,7 +254,7 @@ export default class GameController {
       ).validCells;
 
       const validCellsForStep = valCells.filter((index) => {
-        const positions = [...this.state].map((char) => char.position);
+        const positions = [...this.players].map((char) => char.position);
         return !positions.includes(index);
       });
 
@@ -245,9 +266,9 @@ export default class GameController {
   }
 
   makeStep(char, index) {
-    this.state = [...this.state].filter((el) => el !== char);
+    this.players = [...this.players].filter((el) => el !== char);
     char.position = index;
-    this.state.push(char);
+    this.players.push(char);
     this.endOfTurn();
   }
 
@@ -258,50 +279,58 @@ export default class GameController {
     if (this.selectChar && this.selectChar.character.health <= 0) {
       this.selectChar = null;
     }
-    const arrayOfEnemies = [...this.state].filter((char) => !char.character.isPlayer);
+    const arrayOfEnemies = [...this.players].filter((char) => !char.character.isPlayer);
     if (arrayOfEnemies.length === 0) {
       this.nextLevel();
       return;
     }
+    const arrayOfUser = [...this.players].filter((char) => char.character.isPlayer);
+    if (arrayOfUser.length === 0) {
+      this.gamePlay.redrawPositions(this.players);
+      this.unsubscriber();
+      GamePlay.showMessage('You lose...');
+      return;
+    }
     this.gamePlay.setCursor(cursors.auto);
-    this.gamePlay.redrawPositions(this.state);
+    this.gamePlay.redrawPositions(this.players);
     if (this.selectChar) {
       this.gamePlay.selectCell(this.selectChar.position);
     }
-    if (this.userTurn) {
-      this.userTurn = false;
+    if (this.isUserTurn) {
+      this.isUserTurn = false;
       this.computerTurn();
     } else {
-      this.userTurn = true;
+      this.isUserTurn = true;
     }
   }
 
   nextLevel() {
-    console.log('YOU WIN!');
+    GamePlay.showMessage('START NEW LEVEL!');
     this.currentLevel += 1;
     if (this.currentLevel > 4) {
       this.endOfGame();
       return;
     }
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
-    this.scores += this.state.reduce((acc, prev) => acc + prev.character.health, 0);
+    this.scores += this.players.reduce((acc, prev) => acc + prev.character.health, 0);
     const levelElement = document.getElementById('level');
     const scoresElement = document.getElementById('scores');
     const recordElement = document.getElementById('record');
     levelElement.textContent = this.currentLevel;
     scoresElement.textContent = this.scores;
+    this.record = Math.max(this.record, this.scores);
     recordElement.textContent = this.record;
     // апаем оставшихся персонажей
-    this.state.reduce((acc, prev) => {
+    this.players.reduce((acc, prev) => {
       prev.character.levelUp();
       acc.push(prev);
       return acc;
     }, []);
     // создаем новых игроков и добавляем их в команду
-    const cuantityOfNewChars = this.currentLevel > 2 ? 2 : 1;
-    const newChars = generateTeam(new Team().userTeam, this.currentLevel - 1, cuantityOfNewChars);
+    const quantityOfNewChars = this.currentLevel > 2 ? 2 : 1;
+    const newChars = generateTeam(new Team().userTeam, this.currentLevel - 1, quantityOfNewChars);
     // генерируем массивы команд с новыми позициями
-    let newUserTeam = [...this.state].map((char) => char.character);
+    let newUserTeam = [...this.players].map((char) => char.character);
     newUserTeam = [...newUserTeam, ...newChars];
     this.userTeamWithPositions = this.generateTeamWithPositions(
       newUserTeam,
@@ -316,13 +345,13 @@ export default class GameController {
       this.statesUpForCompChars(newComputerTeam),
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
-    // обновляем state и перерисовываем поле
-    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    // обновляем массив игроков и перерисовываем поле
+    this.players = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
     this.gamePlay.cells.forEach((cell) =>
       this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
     );
     this.selectChar = null;
-    this.gamePlay.redrawPositions(this.state);
+    this.gamePlay.redrawPositions(this.players);
   }
 
   statesUpForCompChars(team) {
@@ -336,12 +365,15 @@ export default class GameController {
   }
 
   endOfGame() {
+    GamePlay.showMessage('YOU WIN THE GAME!');
     this.unsubscriber();
-    alert('YOU WIN THE GAME!');
+    this.scores += this.players.reduce((acc, prev) => acc + prev.character.health, 0);
+    const scoresElement = document.getElementById('scores');
+    scoresElement.textContent = this.scores;
     this.record = Math.max(this.record, this.scores);
     const recordElement = document.getElementById('record');
     recordElement.textContent = this.record;
-    this.gamePlay.redrawPositions(this.state);
+    this.gamePlay.redrawPositions(this.players);
   }
 
   onNewGame() {
@@ -357,11 +389,49 @@ export default class GameController {
       computerTeam,
       getArrayOfPositions('computer', this.gamePlay.boardSize)
     );
-    this.state = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
+    this.players = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
     this.userTurn = true;
 
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
-    this.gamePlay.redrawPositions(this.state);
+    this.gamePlay.redrawPositions(this.players);
+
+    const levelElement = document.getElementById('level');
+    const scoresElement = document.getElementById('scores');
+    const recordElement = document.getElementById('record');
+    levelElement.textContent = this.currentLevel;
+    scoresElement.textContent = this.scores;
+    this.record = Math.max(this.record, this.scores);
+    recordElement.textContent = this.record;
+  }
+
+  onSaveGame() {
+    const stateObj = {
+      players: this.players,
+      level: this.currentLevel,
+      scores: this.scores,
+      record: this.record,
+      isUserTurn: this.isUserTurn,
+    };
+    this.stateService.save(GameState.from(stateObj));
+  }
+
+  onLoadGame() {
+    const state = GameState.from(this.stateService.load());
+
+    this.currentLevel = state.level;
+    this.scores = state.scores;
+    this.record = state.record;
+    this.players = state.players;
+    this.isUserTurn = state.isUserTurn;
+
+    this.players = this.players.reduce((acc, prev) => {
+      prev.character.__proto__ = Chatacter.prototype;
+      acc.push(prev);
+      return acc;
+    }, []);
+
+    this.gamePlay.drawUi(themes[this.currentLevel - 1]);
+    this.gamePlay.redrawPositions(this.players);
 
     const levelElement = document.getElementById('level');
     const scoresElement = document.getElementById('scores');
@@ -369,10 +439,6 @@ export default class GameController {
     levelElement.textContent = this.currentLevel;
     scoresElement.textContent = this.scores;
     recordElement.textContent = this.record;
-
-    this.onCellClickSubscriber();
-    this.onCellEnterSubscriber();
-    this.onCellLeaveSubscriber();
   }
 
   unsubscriber() {

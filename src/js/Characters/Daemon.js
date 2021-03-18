@@ -9,6 +9,5 @@ export default class Daemon extends Character {
     this.step = 1;
     this.range = 4;
     this.isPlayer = false;
-    this.health = 1;
   }
 }
