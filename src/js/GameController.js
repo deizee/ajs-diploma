@@ -32,6 +32,8 @@ export default class GameController {
     );
     this.players = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
     this.isUserTurn = true;
+    this.stepIsPossible = false;
+    this.attackIsPossible = false;
 
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
     this.gamePlay.redrawPositions(this.players);
@@ -64,7 +66,7 @@ export default class GameController {
   onCellClick(index) {
     // TODO: react to click
     const currentCharacter = this.players.find((el) => el.position === index);
-    // если в ячейке есть персонаж и он игрок, то убирай предыдущие выделения, выделяй его и записыыавй его в this.selectChar
+    // если в ячейке есть персонаж и он игрок, то убирай предыдущие выделения, выделяй его и записывай его в this.selectChar
     if (currentCharacter && currentCharacter.character.isPlayer) {
       this.players.forEach((el) => this.gamePlay.deselectCell(el.position));
       this.gamePlay.selectCell(index);
@@ -77,27 +79,13 @@ export default class GameController {
     }
     // если есть выбранный персонаж, и мы кликаем на пустую ячейку, то проверяй, можно ли туда сходить. Если да, то ходи
     if (this.selectChar && !currentCharacter && this.selectChar.position !== index) {
-      if (
-        isStepPossible(
-          this.selectChar.position,
-          index,
-          this.selectChar.character.step,
-          this.gamePlay.boardSize
-        ).success
-      ) {
+      if (this.stepIsPossible) {
         this.makeStep(this.selectChar, index);
       }
     }
     // если есть выбранный персонаж, и мы кликаем на персонаж компьютера, то проверяй, можно ли атаковать. Если да, то атакуй
     if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
-      if (
-        isAttackPossible(
-          this.selectChar.position,
-          currentCharacter.position,
-          this.selectChar.character.range,
-          this.gamePlay.boardSize
-        )
-      ) {
+      if (this.attackIsPossible) {
         this.attackTheEnemy(this.selectChar, currentCharacter);
       }
     }
@@ -127,14 +115,13 @@ export default class GameController {
 
     // если есть выбранный персонаж, и наводим на пустую ячейку, то подсвечиваем зеленым, если туда можно сходить
     if (!currentCharacter && this.selectChar) {
-      if (
-        isStepPossible(
-          this.selectChar.position,
-          index,
-          this.selectChar.character.step,
-          this.gamePlay.boardSize
-        ).success
-      ) {
+      this.stepIsPossible = isStepPossible(
+        this.selectChar.position,
+        index,
+        this.selectChar.character.step,
+        this.gamePlay.boardSize
+      ).success;
+      if (this.stepIsPossible) {
         this.gamePlay.selectCell(index, 'green');
         this.gamePlay.setCursor(cursors.pointer);
       }
@@ -143,14 +130,13 @@ export default class GameController {
     // если есть выбранный, персонаж и наводим на персонаж компьютера, то проверяй, находится ли он в зоне атаки.
     // Если да, то подсвечивай его красным и меняй курсор на crosshair. Если нет, то меняй курсор на notallowed
     if (this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
-      if (
-        isAttackPossible(
-          this.selectChar.position,
-          currentCharacter.position,
-          this.selectChar.character.range,
-          this.gamePlay.boardSize
-        )
-      ) {
+      this.attackIsPossible = isAttackPossible(
+        this.selectChar.position,
+        currentCharacter.position,
+        this.selectChar.character.range,
+        this.gamePlay.boardSize
+      );
+      if (this.attackIsPossible) {
         this.gamePlay.selectCell(index, 'red');
         this.gamePlay.setCursor(cursors.crosshair);
       } else {
@@ -193,13 +179,15 @@ export default class GameController {
     const attackPoints = Math.max(
       attacker.character.attack - enemy.character.defence,
       attacker.character.attack * 0.1
-    );
+    ).toFixed(0);
     this.players = [...this.players].filter((el) => el !== enemy);
     enemy.character.damage(attackPoints);
     if (enemy.character.health > 0) {
       this.players.push(enemy);
+      this.gamePlay.showDamage(enemy.position, attackPoints).then(() => this.endOfTurn());
+    } else {
+      this.endOfTurn();
     }
-    this.gamePlay.showDamage(enemy.position, attackPoints).then(() => this.endOfTurn());
   }
 
   computerTurn() {
@@ -286,8 +274,7 @@ export default class GameController {
     }
     const arrayOfUser = [...this.players].filter((char) => char.character.isPlayer);
     if (arrayOfUser.length === 0) {
-      this.gamePlay.redrawPositions(this.players);
-      this.unsubscriber();
+      this.endOfGame();
       GamePlay.showMessage('You lose...');
       return;
     }
@@ -305,10 +292,12 @@ export default class GameController {
   }
 
   nextLevel() {
-    GamePlay.showMessage('START NEW LEVEL!');
     this.currentLevel += 1;
-    if (this.currentLevel > 4) {
+    if (this.currentLevel < 5) {
+      GamePlay.showMessage('START NEW LEVEL!');
+    } else {
       this.endOfGame();
+      GamePlay.showMessage('YOU WIN THE GAME!');
       return;
     }
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
@@ -365,7 +354,6 @@ export default class GameController {
   }
 
   endOfGame() {
-    GamePlay.showMessage('YOU WIN THE GAME!');
     this.unsubscriber();
     this.scores += this.players.reduce((acc, prev) => acc + prev.character.health, 0);
     const scoresElement = document.getElementById('scores');
@@ -377,6 +365,7 @@ export default class GameController {
   }
 
   onNewGame() {
+    this.unsubscriber();
     this.currentLevel = 1;
     this.scores = 0;
     const userTeam = generateTeam(new Team().userTeam, 1, 2);
@@ -402,6 +391,9 @@ export default class GameController {
     scoresElement.textContent = this.scores;
     this.record = Math.max(this.record, this.scores);
     recordElement.textContent = this.record;
+    this.onCellClickSubscriber();
+    this.onCellEnterSubscriber();
+    this.onCellLeaveSubscriber();
   }
 
   onSaveGame() {
