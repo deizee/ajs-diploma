@@ -1,5 +1,5 @@
 import PositionedCharacter from '../PositionedCharacter';
-import Bowman from '../characters/Bowman';
+import Bowman from '../Bowman';
 
 test('Если в PositionedCharacter передать объект, который не наследуется от Character, то будет выброшена ошибка', () => {
   const obj = {};

@@ -1,5 +1,5 @@
 import Character from '../Character';
-import Bowman from '../characters/Bowman';
+import Bowman from '../Bowman';
 
 test('Класс должен создать инстанс, если он не вызван самим Character', () => {
   const bowman = new Bowman(1);

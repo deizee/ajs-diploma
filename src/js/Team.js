@@ -1,9 +1,9 @@
-import Bowman from './characters/Bowman';
-import Swordsman from './characters/Swordsman';
-import Daemon from './characters/Daemon';
-import Magician from './characters/Magician';
-import Undead from './characters/Undead';
-import Vampire from './characters/Vampire';
+import Bowman from './Bowman';
+import Swordsman from './Swordsman';
+import Daemon from './Daemon';
+import Magician from './Magician';
+import Undead from './Undead';
+import Vampire from './Vampire';
 
 const userTeam = [Bowman, Swordsman, Magician];
 const computerTeam = [Daemon, Undead, Vampire];

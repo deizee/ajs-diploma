@@ -1,8 +1,8 @@
 import GameController from '../GameController';
 import GamePlay from '../GamePlay';
 import GameStateService from '../GameStateService';
-import Bowman from '../characters/Bowman';
-import Daemon from '../characters/Daemon';
+import Bowman from '../Bowman';
+import Daemon from '../Daemon';
 import PositionedCharacter from '../PositionedCharacter';
 
 let gamePlay = null;
