@@ -1,4 +1,4 @@
-export function calcTileType(index, boardSize) {
+export function calcTileType(index, boardSize = 8) {
   // TODO: write logic here
   if (index === 0) {
     return 'top-left';
@@ -39,7 +39,7 @@ export function calcHealthLevel(health) {
   return 'high';
 }
 
-export function getArrayOfPositions(type, boardSize) {
+export function getArrayOfPositions(type, boardSize = 8) {
   const array = [];
   if (type === 'user') {
     for (let i = 0; i < boardSize ** 2; i++) {
@@ -59,7 +59,7 @@ export function getArrayOfPositions(type, boardSize) {
   return array;
 }
 
-function genetateCoordinates(boardSize) {
+function genetateCoordinates(boardSize = 8) {
   return new Array(64)
     .fill(0)
     .map((el, index) => index++)
@@ -75,7 +75,7 @@ function genetateCoordinates(boardSize) {
  * @param {Number} boardSize
  * @returns boolean (true if step is possible)
  */
-export function isStepPossible(curPosition, nextPosition, step, boardSize) {
+export function isStepPossible(curPosition, nextPosition, step, boardSize = 8) {
   const coordinates = genetateCoordinates(boardSize);
   const currentXY = coordinates[curPosition];
   const nextXY = coordinates[nextPosition];

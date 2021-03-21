@@ -5,7 +5,7 @@ export default class Character {
     this.defence = 0;
     this.health = 100;
     this.type = type;
-    // TODO: throw error if user use "new Character()"
+
     if (new.target === Character) {
       throw new Error('Ошибка создания класса');
     }

@@ -15,11 +15,23 @@ export default class GameController {
   }
 
   init() {
-    // TODO: add event listeners to gamePlay events
-    // TODO: load saved stated from stateService
-    this.currentLevel = 1; // текущий уровень
-    this.scores = 0; // очки
     this.record = 0; // максимальное количество очков (рекорд)
+
+    this.prepareTheGame(); // подготовка к игре
+    this.onCellClickSubscriber();
+    this.onCellEnterSubscriber();
+    this.onCellLeaveSubscriber();
+    this.onNewGameSubscriber();
+    this.onSaveGameSubscriber();
+    this.onLoadGameSubscriber();
+    this.renderScores(); // отрисовка уровня, очков и рекорда
+  }
+
+  prepareTheGame() {
+    this.currentLevel = 1; // текущий уровень
+    this.gamePlay.drawUi(themes[this.currentLevel - 1]); // отрисовываем тему
+    this.scores = 0; // очки
+    this.selectChar = null; // выделенный персонаж
     const userTeam = generateTeam(new Team().userTeam, 1, 2); // команда игрока (без позиций)
     const computerTeam = generateTeam(new Team().computerTeam, 1, 2); // команда компьютера (без позиций)
     // генерируем команду игрока с позициями
@@ -38,23 +50,7 @@ export default class GameController {
     this.stepIsPossible = false; // переменная для определения возможности передвижения
     this.attackIsPossible = false; // переменная для определения возможности атаки
 
-    this.gamePlay.drawUi(themes[this.currentLevel - 1]); // отрисовываем тему
     this.gamePlay.redrawPositions(this.players); // отрисовываем персонажей
-
-    // отрисовка уровня, очков и рекорда
-    const levelElement = document.getElementById('level');
-    const scoresElement = document.getElementById('scores');
-    const recordElement = document.getElementById('record');
-    levelElement.textContent = this.currentLevel;
-    scoresElement.textContent = this.scores;
-    recordElement.textContent = this.record;
-
-    this.onCellClickSubscriber();
-    this.onCellEnterSubscriber();
-    this.onCellLeaveSubscriber();
-    this.onNewGameSubscriber();
-    this.onSaveGameSubscriber();
-    this.onLoadGameSubscriber();
   }
 
   // функция, которая на вход принимает массив игроков и масив позиций и возвращает массив бъектов с игроками и их позициями
@@ -66,35 +62,6 @@ export default class GameController {
       array.splice(array.indexOf(position), 1);
       return acc;
     }, []);
-  }
-
-  onCellClick(index) {
-    // TODO: react to click
-    // записывает персонажа в переменную, если он есть в ячейке, на которую кликнули
-    const currentCharacter = this.players.find((el) => el.position === index);
-    // если в ячейке есть персонаж И он игрок, то убирай предыдущие выделения, выделяй его и записывай его в this.selectChar
-    if (currentCharacter && currentCharacter.character.isPlayer) {
-      this.players.forEach((el) => this.gamePlay.deselectCell(el.position));
-      this.gamePlay.selectCell(index);
-      this.selectChar = currentCharacter;
-    }
-    // если нет выбранного персонажа И в ячейке есть персонаж И он не игрок, то показывай ошибку, что его выбирать нельзя
-    if (!this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
-      GamePlay.showError('This is not a playable character');
-      return;
-    }
-    // если есть выбранный персонаж И мы кликаем на пустую ячейку, то проверяй, можно ли туда сходить. Если да, то ходи
-    if (this.selectChar && !currentCharacter && this.selectChar.position !== index) {
-      if (this.stepIsPossible) {
-        this.makeStep(this.selectChar, index);
-      }
-    }
-    // если есть выбранный персонаж И мы кликаем на персонаж компьютера, то проверяй, можно ли атаковать. Если да, то атакуй
-    if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
-      if (this.attackIsPossible) {
-        this.attackTheEnemy(this.selectChar, currentCharacter);
-      }
-    }
   }
 
   onCellEnter(index) {
@@ -148,8 +115,35 @@ export default class GameController {
     }
   }
 
+  onCellClick(index) {
+    // записывает персонажа в переменную, если он есть в ячейке, на которую кликнули
+    const currentCharacter = this.players.find((el) => el.position === index);
+    // если в ячейке есть персонаж И он игрок, то убирай предыдущие выделения, выделяй его и записывай его в this.selectChar
+    if (currentCharacter && currentCharacter.character.isPlayer) {
+      this.players.forEach((el) => this.gamePlay.deselectCell(el.position));
+      this.gamePlay.selectCell(index);
+      this.selectChar = currentCharacter;
+    }
+    // если нет выбранного персонажа И в ячейке есть персонаж И он не игрок, то показывай ошибку, что его выбирать нельзя
+    if (!this.selectChar && currentCharacter && !currentCharacter.character.isPlayer) {
+      GamePlay.showError('This is not a playable character');
+      return;
+    }
+    // если есть выбранный персонаж И мы кликаем на пустую ячейку, то проверяй, можно ли туда сходить. Если да, то ходи
+    if (this.selectChar && !currentCharacter && this.selectChar.position !== index) {
+      if (this.stepIsPossible) {
+        this.makeStep(this.selectChar, index);
+      }
+    }
+    // если есть выбранный персонаж И мы кликаем на персонаж компьютера, то проверяй, можно ли атаковать. Если да, то атакуй
+    if (this.selectChar && currentCharacter && this.selectChar.position !== index) {
+      if (this.attackIsPossible) {
+        this.attackTheEnemy(this.selectChar, currentCharacter);
+      }
+    }
+  }
+
   onCellLeave(index) {
-    // TODO: react to mouse leave
     this.gamePlay.hideCellTooltip(index);
   }
 
@@ -160,9 +154,9 @@ export default class GameController {
       attacker.character.attack - enemy.character.defence,
       attacker.character.attack * 0.1
     ).toFixed(0);
-    // удаляем персонажа, которого атакуем, из массива игроков, пересчитываем ему ХП с учетом дамага и,
-    // если ХП>0, то снова пушим его в массив, затем делаем переход хода.
-    // если ХП<=0, значит персонаж убит, не пушим его в массив, а просто делаем переход хода
+    // удаляем персонажа, которого атакуем, из массива игроков, пересчитываем ему health с учетом дамага и,
+    // если health > 0, то снова пушим его в массив, затем делаем переход хода.
+    // если health <= 0, значит персонаж убит, не пушим его в массив, а просто делаем переход хода
     this.players = [...this.players].filter((el) => el !== enemy);
     enemy.character.damage(attackPoints);
     if (enemy.character.health > 0) {
@@ -175,14 +169,15 @@ export default class GameController {
 
   // конец хода
   endOfTurn() {
-    // очищаем все ячейки от выделений ))
+    // очищаем все ячейки от выделений =))
     this.gamePlay.cells.forEach((cell) =>
       this.gamePlay.deselectCell(this.gamePlay.cells.indexOf(cell))
     );
-    // если есть выбранный персонаж И его здоровье > 0, то обнуляем его
+    // если есть выбранный персонаж И его здоровье < 0, то обнуляем его
     if (this.selectChar && this.selectChar.character.health <= 0) {
       this.selectChar = null;
     }
+
     // формируем массив персонажей компьютера. Если он пустой, тогда переходим на следующий уровень
     const arrayOfEnemies = [...this.players].filter((char) => !char.character.isPlayer);
     if (arrayOfEnemies.length === 0) {
@@ -294,19 +289,21 @@ export default class GameController {
     if (this.currentLevel < 5) {
       GamePlay.showMessage('START NEW LEVEL!');
     } else {
+      this.currentLevel = 4;
       this.endOfGame();
       GamePlay.showMessage('YOU WIN THE GAME!');
       return;
     }
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
-    this.scores += this.players.reduce((acc, prev) => acc + prev.character.health, 0);
-    const levelElement = document.getElementById('level');
-    const scoresElement = document.getElementById('scores');
-    const recordElement = document.getElementById('record');
-    levelElement.textContent = this.currentLevel;
-    scoresElement.textContent = this.scores;
+    // считаем очки
+    this.scores += this.players.reduce((acc, prev) => {
+      if (prev.character.isPlayer) {
+        acc += prev.character.health;
+      }
+      return acc;
+    }, 0);
     this.record = Math.max(this.record, this.scores);
-    recordElement.textContent = this.record;
+    this.renderScores();
     // апаем оставшихся в живых персонажей
     this.players.reduce((acc, prev) => {
       prev.character.levelUp();
@@ -353,48 +350,23 @@ export default class GameController {
   }
 
   endOfGame() {
-    // отписываемся от событий, чтобы заблокироват поле
-    this.unsubscriber();
-    // перезаписываем очки и рекорд
-    this.scores += this.players.reduce((acc, prev) => acc + prev.character.health, 0);
-    const scoresElement = document.getElementById('scores');
-    scoresElement.textContent = this.scores;
+    this.unsubscriber(); // отписываемся от событий, чтобы заблокироват поле
+    this.scores += this.players.reduce((acc, prev) => {
+      if (prev.character.isPlayer) {
+        acc += prev.character.health;
+      }
+      return acc;
+    }, 0);
     this.record = Math.max(this.record, this.scores);
-    const recordElement = document.getElementById('record');
-    recordElement.textContent = this.record;
-    // перерисовываем персонажей
-    this.gamePlay.redrawPositions(this.players);
+    this.renderScores(); // перезаписываем очки и рекорд
+    this.gamePlay.redrawPositions(this.players); // перерисовываем персонажей
   }
 
   onNewGame() {
     // отписываемся от старых подписок, обнуляем все переменные, формируем заново команды и подписываемся на события
     this.unsubscriber();
-    this.currentLevel = 1;
-    this.scores = 0;
-    this.selectChar = null;
-    const userTeam = generateTeam(new Team().userTeam, 1, 2);
-    const computerTeam = generateTeam(new Team().computerTeam, 1, 2);
-    this.userTeamWithPositions = this.generateTeamWithPositions(
-      userTeam,
-      getArrayOfPositions('user', this.gamePlay.boardSize)
-    );
-    this.computerTeamWithPositions = this.generateTeamWithPositions(
-      computerTeam,
-      getArrayOfPositions('computer', this.gamePlay.boardSize)
-    );
-    this.players = [...this.userTeamWithPositions, ...this.computerTeamWithPositions];
-    this.userTurn = true;
-
-    this.gamePlay.drawUi(themes[this.currentLevel - 1]);
-    this.gamePlay.redrawPositions(this.players);
-
-    const levelElement = document.getElementById('level');
-    const scoresElement = document.getElementById('scores');
-    const recordElement = document.getElementById('record');
-    levelElement.textContent = this.currentLevel;
-    scoresElement.textContent = this.scores;
-    this.record = Math.max(this.record, this.scores);
-    recordElement.textContent = this.record;
+    this.prepareTheGame();
+    this.renderScores();
     this.onCellClickSubscriber();
     this.onCellEnterSubscriber();
     this.onCellLeaveSubscriber();
@@ -412,7 +384,12 @@ export default class GameController {
   }
 
   onLoadGame() {
+    this.selectChar = null;
     const state = GameState.from(this.stateService.load());
+    if (!state) {
+      GamePlay.showError('Error of load');
+      return;
+    }
 
     this.currentLevel = state.level;
     this.scores = state.scores;
@@ -428,12 +405,16 @@ export default class GameController {
 
     this.gamePlay.drawUi(themes[this.currentLevel - 1]);
     this.gamePlay.redrawPositions(this.players);
+    this.renderScores();
+  }
 
-    const levelElement = document.getElementById('level');
-    const scoresElement = document.getElementById('scores');
-    const recordElement = document.getElementById('record');
+  renderScores() {
+    const levelElement = this.gamePlay.container.querySelector('#level');
+    const scoresElement = this.gamePlay.container.querySelector('#scores');
+    const recordElement = this.gamePlay.container.querySelector('#record');
     levelElement.textContent = this.currentLevel;
     scoresElement.textContent = this.scores;
+    this.record = Math.max(this.record, this.scores);
     recordElement.textContent = this.record;
   }
 
